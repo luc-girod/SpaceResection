@@ -218,9 +218,6 @@ def main():
         help="read input data from FILE, the default value is \"input.txt\"",
         metavar="FILE")
     parser.add_option(
-        "-o", "--output",
-        help="write output to FILE", metavar="FILE")
-    parser.add_option(
         "-s", "--sigma",
         type="float",
         dest="s",
