@@ -14,12 +14,13 @@ There must be more than three point observations to solve six unknown parameters
 First, create an input file. The format of an input file must like:
 ```
 <f>
-<x1> <y1> <X1> <Y1> <Z1> <X1-Err> <Y1-Err> <Z1-Err>
-<x2> <y2> <X2> <Y2> <Z2> <X2-Err> <Y2-Err> <Z2-Err>
-<x3> <y3> <X3> <Y3> <Z3> <X3-Err> <Y3-Err> <Z3-Err>
+<P-Name> <x1> <y1> <X1> <Y1> <Z1> <X1-Err> <Y1-Err> <Z1-Err>
+<P-Name> <x2> <y2> <X2> <Y2> <Z2> <X2-Err> <Y2-Err> <Z2-Err>
+<P-Name> <x3> <y3> <X3> <Y3> <Z3> <X3-Err> <Y3-Err> <Z3-Err>
 ...
 ```
-`<f>` means focal length of camera.  
+`<f>` is the focal length of camera.  
+`<P-Name>` is the point name.  
 `<x*> <y*>` stands for the image point coordinates with corresponding object point coordinates `<X*> <Y*> <Z*>`.  
 Since the object point coordinates are treated as observables with uncertainty, so they must have errors `<X*-Err> <Y*-Err> <Z*-Err>`.
 
