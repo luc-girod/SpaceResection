@@ -70,7 +70,7 @@ def getInit(xa, ya, XA, YA, ZA, f):
 
 def getM(Omega, Phi, Kappa):
     """Compute rotation matrix M"""
-    M = np.matrix([                # for omega, phi, kappa
+    M = np.matrix([
         [
             cos(Phi)*cos(Kappa),
             sin(Omega)*sin(Phi)*cos(Kappa) + cos(Omega)*sin(Kappa),
