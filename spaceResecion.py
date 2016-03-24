@@ -175,7 +175,7 @@ def spaceResection(inputFile="input.txt", s=rad(5)):
         B = np.matrix(B.reshape(-1, 6))
         f = np.matrix(f.reshape(-1, 1))
 
-        Qe = (A * W * A.T).I
+        Qe = (A * W.I * A.T)
         We = Qe.I
         N = (B.T * We * B)                  # Compute normal matrix
         t = (B.T * We * f)                  # Compute t matrix
