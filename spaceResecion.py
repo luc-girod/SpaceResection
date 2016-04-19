@@ -184,10 +184,10 @@ def spaceResection(inputFile="input.txt", s=rad(5)):
 
         X0 += dX            # Update initial values
 
-        # Compute error of unit weight
+        # Compute sigma0
         res = (V.T * W * V)[0, 0]
         s0 = (res / (B.shape[0] - B.shape[1]))**0.5
-        # print "Error of unit weight : %.4f" % s0
+        # print "Sigma0 : %.4f" % s0
 
     # Compute other informations
     SigmaXX = s0**2 * N.I
@@ -206,7 +206,7 @@ def spaceResection(inputFile="input.txt", s=rad(5)):
     print " %-10s %11.6f %11.6f" % ("XL", XL, paramStd[0])
     print " %-10s %11.6f %11.6f" % ("YL", YL, paramStd[1])
     print " %-10s %11.6f %11.6f" % ("ZL", ZL, paramStd[2])
-    print "\nError of unit weight : %.6f" % s0
+    print "\nSigma0 : %.6f" % s0
 
 
 def main():
