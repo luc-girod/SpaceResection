@@ -198,11 +198,11 @@ def spaceResection(inputFile="input.txt", s=rad(5)):
     print "Exterior orientation parameters:"
     print (" %9s %11s %11s") % ("Parameter", "Value", "Std.")
     print " %-10s %11.6f %11.6f" % (
-        "Omega(deg)", deg(Omega), deg(paramStd[3]))
+        "Omega(deg)", deg(Omega) % 360, deg(paramStd[3]))
     print " %-10s %11.6f %11.6f" % (
-        "Phi(deg)", deg(Phi), deg(paramStd[4]))
+        "Phi(deg)", deg(Phi) % 360, deg(paramStd[4]))
     print " %-10s %11.6f %11.6f" % (
-        "Kappa(deg)", deg(Kappa), deg(paramStd[5]))
+        "Kappa(deg)", deg(Kappa) % 360, deg(paramStd[5]))
     print " %-10s %11.6f %11.6f" % ("XL", XL, paramStd[0])
     print " %-10s %11.6f %11.6f" % ("YL", YL, paramStd[1])
     print " %-10s %11.6f %11.6f" % ("ZL", ZL, paramStd[2])
