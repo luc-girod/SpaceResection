@@ -12,28 +12,36 @@ np.set_printoptions(suppress=True)  # Disable scientific notation for numpy
 
 def calculateH(xa, ya, XA, YA, ZA, f):
     """Compute height of exposure station with formula 6-13"""
-    xa, xb = xa[:2]
-    ya, yb = ya[:2]
-    XA, XB = XA[:2]
-    YA, YB = YA[:2]
-    ZA, ZB = ZA[:2]
+    xai = xa[:-1]
+    xbi = xa[1:]
+    yai = ya[:-1]
+    ybi = ya[1:]
+    XAi = XA[:-1]
+    XBi = XA[1:]
+    YAi = YA[:-1]
+    YBi = YA[1:]
+    ZAi = ZA[:-1]
+    ZBi = ZA[1:]
 
-    AB = (np.sqrt((XA - XB)**2 + (YA - YB)**2))
+    AB = (np.sqrt((XAi - XBi)**2 + (YAi - YBi)**2))
 
-    a = ((xb-xa)/f)**2 + ((yb-ya)/f)**2
-    b = (2*((xb-xa)/f)*((xa/f)*ZA - (xb/f)*ZB)) + \
-        (2*((yb-ya)/f)*((ya/f)*ZA - (yb/f)*ZB))
-    c = ((xa/f)*ZA-(xb/f)*ZB)**2 + ((ya/f)*ZA - (yb/f)*ZB)**2 - AB**2
+    a = ((xbi-xai)/f)**2 + ((ybi-yai)/f)**2
+    b = (2*((xbi-xai)/f)*((xai/f)*ZAi - (xbi/f)*ZBi)) + \
+        (2*((ybi-yai)/f)*((yai/f)*ZAi - (ybi/f)*ZBi))
+    c = ((xai/f)*ZAi-(xbi/f)*ZBi)**2 + ((yai/f)*ZAi - (ybi/f)*ZBi)**2 - AB**2
 
-    if (-b + np.sqrt(b**2 - 4*a*c))/(2*a) > 0:
-        return ((-b + np.sqrt(b**2 - 4*a*c))/(2*a))[0]
-    else:
-        return ((-b - np.sqrt(b**2 - 4*a*c))/(2*a))[0]
+    # Find the two roots of H
+    sol = np.dstack((
+                    (-b + np.sqrt(b**2 - 4*a*c))/(2*a),
+                    (-b - np.sqrt(b**2 - 4*a*c))/(2*a))).reshape(-1, 2)
+    H = sol.max(axis=1)
+
+    H = H[~np.isnan(H)]
+    return H[abs(H - H.mean()) < H.std()].mean()
 
 
 def conformalTrans(xa, ya, XA, YA):
     """Perform conformal transformation parameters"""
-
     # Define coefficient matrix
     n = xa.shape[0]     # Number of control points
     B = np.matrix(np.zeros((2 * n, 4)))
