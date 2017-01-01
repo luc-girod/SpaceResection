@@ -113,7 +113,7 @@ def getEqn(IO, EO, PT, pt):
     return F
 
 
-def spaceResection(inputFile, s):
+def spaceResection(inputFile, outputFile, s):
     """Perform a space resection"""
     # Define symbols
     EO = symbols("XL YL ZL Omega Phi Kappa")  # Exterior orienration parameters
@@ -244,15 +244,27 @@ def spaceResection(inputFile, s):
     print " %-10s %11.6f %11.6f" % ("ZL", ZL, paramStd[2])
     print "\nSigma0 : %.6f" % s0
 
+    with open(outputFile, 'w') as fout:
+        fout.write("%.6f "*3 % (XL, YL, ZL))
+        fout.write("%.6f "*3 %
+            tuple(map(lambda x: deg(x) % 360, [Omega, Phi, Kappa])))
+        fout.write("%.6f "*3 % tuple(paramStd[:3]))
+        fout.write("%.6f "*3 % tuple(map(lambda x: deg(x), paramStd[3:])))
+
 
 def main():
-    parser = OptionParser(usage="%prog [-i] [-s]", version="%prog 0.2")
+    parser = OptionParser(usage="%prog [-i] [-o] [-s]", version="%prog 0.2")
 
     # Define options
     parser.add_option(
         '-i', '--input',
         help="read input data from FILE, the default value is \"input.txt\"",
         metavar='FILE')
+
+    parser.add_option(
+        '-o', '--output',
+        help="name of output file, the default value is \"result.txt\"",
+        metavar='OUTPUT')
 
     parser.add_option(
         '-s', '--sigma',
@@ -268,10 +280,13 @@ def main():
     if not options.input:
         options.input = "input.txt"
 
+    if not options.output:
+        options.output = "result.txt"
+
     if not options.s:
         options.s = 0.005
 
-    spaceResection(options.input, options.s)
+    spaceResection(options.input, options.output, options.s)
 
     return 0
 
