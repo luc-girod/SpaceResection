@@ -36,3 +36,4 @@ There are already two input files serve as an example.
 
 -[Numpy](http://www.numpy.org)  
 -[Sympy](http://www.sympy.org/en/index.html)  
+-[Pandas](http://pandas.pydata.org/)  
