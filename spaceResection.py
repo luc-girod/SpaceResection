@@ -3,15 +3,15 @@
 from sympy import sin, cos, Matrix, symbols, lambdify
 from optparse import OptionParser
 from math import degrees as deg
-from math import radians as rad
 import numpy as np
+import pandas as pd
 
 
 np.set_printoptions(suppress=True)  # Disable scientific notation for numpy
 
 
 def calculateH(xa, ya, XA, YA, ZA, f):
-    """Compute height of exposure station with formula 6-13"""
+    """Compute height of exposure station with formula 6-13."""
     xai = xa[:-1]
     xbi = xa[1:]
     yai = ya[:-1]
@@ -41,7 +41,7 @@ def calculateH(xa, ya, XA, YA, ZA, f):
 
 
 def conformalTrans(xa, ya, XA, YA):
-    """Perform conformal transformation parameters"""
+    """Perform conformal transformation parameters."""
     # Define coefficient matrix
     n = xa.shape[0]     # Number of control points
     B = np.matrix(np.zeros((2 * n, 4)))
@@ -60,13 +60,13 @@ def conformalTrans(xa, ya, XA, YA):
 
 
 def getInit(xa, ya, XA, YA, ZA, f):
-    """Compute initial values of unknown parameters"""
+    """Compute initial values of unknown parameters."""
     Omega = Phi = 0
     H = calculateH(xa, ya, XA, YA, ZA, f)   # Attitude of exposure station
 
     # Compute arbitrary horizontal coordinates with formula 6-5, 6-6
-    XA2 = xa*(H-ZA)/f
-    YA2 = ya*(H-ZA)/f
+    XA2 = xa * (H-ZA) / f
+    YA2 = ya * (H-ZA) / f
 
     # Perform conformal transformation
     a, b, XL, YL = conformalTrans(XA2, YA2, XA, YA)
@@ -77,7 +77,7 @@ def getInit(xa, ya, XA, YA, ZA, f):
 
 
 def getM(Omega, Phi, Kappa):
-    """Compute rotation matrix M"""
+    """Compute rotation matrix M."""
     M = np.matrix([
         [
             cos(Phi)*cos(Kappa),
@@ -97,7 +97,7 @@ def getM(Omega, Phi, Kappa):
 
 
 def getEqn(IO, EO, PT, pt):
-    """List observation equations"""
+    """List observation equations."""
     f, xo, yo = IO
     XL, YL, ZL, Omega, Phi, Kappa = EO
     XA, YA, ZA = PT
@@ -113,7 +113,7 @@ def getEqn(IO, EO, PT, pt):
     return F
 
 
-def spaceResection(inputFile="input.txt", s=rad(5)):
+def spaceResection(inputFile, s):
     """Perform a space resection"""
     # Define symbols
     EO = symbols("XL YL ZL Omega Phi Kappa")  # Exterior orienration parameters
@@ -121,16 +121,17 @@ def spaceResection(inputFile="input.txt", s=rad(5)):
     pt = symbols("xa ya")       # Image coordinates
 
     # Read observables from txt file
-    fin = open(inputFile)
-    lines = fin.readlines()
-    fin.close()
+    with open(inputFile) as fin:
+        f = float(fin.readline())           # The focal length in mm
 
-    f = float(lines[0])     # The focal length in mm
-    Name, xa, ya, XA, YA, ZA, SigX, SigY, SigZ = np.hsplit(
-        np.array(map(lambda x: x.split(), lines[1:])), 9)
+    data = pd.read_csv(
+        inputFile,
+        delimiter=' ',
+        usecols=range(1, 9),
+        names=[str(i) for i in range(8)],
+        skiprows=1)
 
-    xa, ya, XA, YA, ZA, SigX, SigY, SigZ = map(
-        lambda x: x.astype(np.double), [xa, ya, XA, YA, ZA, SigX, SigY, SigZ])
+    xa, ya, XA, YA, ZA, SigX, SigY, SigZ = np.hsplit(data.values, 8)
 
     # Compute initial values
     X0 = np.matrix(getInit(xa, ya, XA, YA, ZA, f)).T
@@ -153,35 +154,51 @@ def spaceResection(inputFile="input.txt", s=rad(5)):
     JFl = F.jacobian(PT)    # Jacobian matrix for observables
 
     # Create lambda function objects
-    FuncJFx = lambdify((EO+PT), JFx)
-    FuncJFl = lambdify((EO+PT), JFl)
-    FuncF = lambdify((EO+PT+pt), F)
+    FuncJFx = lambdify((EO+PT), JFx, 'numpy')
+    FuncJFl = lambdify((EO+PT), JFl, 'numpy')
+    FuncF = lambdify((EO+PT+pt), F, 'numpy')
 
     # Define weight matrix
     err = np.dstack((SigX, SigY, SigZ)).reshape(1, -1)  # Error vector
-    W = np.matrix(np.diag(s**2 / (err**2).flatten()))
+    W = np.matrix(np.diag(s**2 / (err**2).ravel()))
 
     dX = np.ones(1)                              # Initial value for iteration
 
-    # Iteration process
-    while abs(dX.sum()) > 10**-12:
-        # Compute coefficient matrix and constants matrix
-        A = np.zeros((2 * len(xa), err.shape[1]))
-        B = np.array([])
-        f = np.array([])
+    numPt = len(xa)
 
-        #  Row and column index which is used to update values of A matrix
-        i = 0
-        j = 0
-        for l in np.dstack((XA, YA, ZA, xa, ya)).reshape(-1, 5):
-            val = np.append(np.array(X0).flatten(), l)
-            A[i:i+2, j:j+3] = FuncJFl(*val[:-2])
-            B = np.append(B, FuncJFx(*val[:-2]))
-            f = np.append(f, -FuncF(*val))
-            i += 2
-            j += 3
-        B = np.matrix(B.reshape(-1, 6))
-        f = np.matrix(f.reshape(-1, 1))
+    # Array for the observables and initial values
+    # (XL, YL, ZL, Omega, Phi, Kappa, XA, YA, ZA, xa, ya)
+    l = np.zeros((numPt, 11))
+    l[:, 0] += X0[0, 0]
+    l[:, 1] += X0[1, 0]
+    l[:, 2] += X0[2, 0]
+    l[:, 3] += X0[3, 0]
+    l[:, 4] += X0[4, 0]
+    l[:, 5] += X0[5, 0]
+    l[:, 6] += XA.ravel()
+    l[:, 7] += YA.ravel()
+    l[:, 8] += ZA.ravel()
+    l[:, 9] += xa.ravel()
+    l[:, 10] += ya.ravel()
+
+    # Iteration process
+    lc = 0
+    dRes = 1.       # Termination criteria
+    res = 1.        # Initial value of residual
+    while dRes > 10**-12 and lc < 20:
+        # Compute coefficient matrix and constants matrix
+        A = np.zeros((2 * numPt, err.shape[1]))
+        B = np.zeros((2 * numPt, 6))
+        f = np.zeros((2 * numPt, 1))
+
+        Ai = FuncJFl(*np.hsplit(l, 11)[:-2])
+        Bi = FuncJFx(*np.hsplit(l, 11)[:-2])
+        f = np.matrix(-FuncF(*np.hsplit(l, 11)).T.reshape(-1, 1))
+        for i in range(numPt):
+            A[2*i:2*(i+1), 3*i:3*(i+1)] = Ai[:, :, i].reshape(2, 3)
+            B[2*i:2*(i+1), :] = Bi[:, :, i].reshape(2, 6)
+
+        B = np.matrix(B)
 
         Qe = (A * W.I * A.T)
         We = Qe.I
@@ -191,16 +208,27 @@ def spaceResection(inputFile="input.txt", s=rad(5)):
         V = W.I * A.T * We * (f - B * dX)   # Compute residual vector
 
         X0 += dX            # Update initial values
+        l[:, 0] += dX[0, 0]
+        l[:, 1] += dX[1, 0]
+        l[:, 2] += dX[2, 0]
+        l[:, 3] += dX[3, 0]
+        l[:, 4] += dX[4, 0]
+        l[:, 5] += dX[5, 0]
+
+        # Update termination criteria
+        if lc > 1:
+            dRes = abs(((V.T * W * V)[0, 0]/res) - 1)
+        res = (V.T * W * V)[0, 0]
 
         # Compute sigma0
-        res = (V.T * W * V)[0, 0]
         s0 = (res / (B.shape[0] - B.shape[1]))**0.5
-        # print "Sigma0 : %.4f" % s0
+
+        lc += 1
 
     # Compute other informations
     SigmaXX = s0**2 * N.I
     paramStd = np.sqrt(np.diag(SigmaXX))
-    XL, YL, ZL, Omega, Phi, Kappa = np.array(X0).flatten()
+    XL, YL, ZL, Omega, Phi, Kappa = np.array(X0).ravel()
 
     # Output results
     print "Exterior orientation parameters:"
@@ -218,19 +246,20 @@ def spaceResection(inputFile="input.txt", s=rad(5)):
 
 
 def main():
-    parser = OptionParser(usage="%prog [-i] [-s]", version="%prog 0.1")
+    parser = OptionParser(usage="%prog [-i] [-s]", version="%prog 0.2")
 
     # Define options
     parser.add_option(
-        "-i", "--input",
+        '-i', '--input',
         help="read input data from FILE, the default value is \"input.txt\"",
-        metavar="FILE")
+        metavar='FILE')
+
     parser.add_option(
-        "-s", "--sigma",
-        type="float",
-        dest="s",
-        help="define a priori error, the default value is 5 (deg)",
-        metavar="N")
+        '-s', '--sigma',
+        type='float',
+        dest='s',
+        help="define a priori error, the default value is 0.005",
+        metavar='N')
 
     # Instruct optparse object
     (options, args) = parser.parse_args()
@@ -240,9 +269,9 @@ def main():
         options.input = "input.txt"
 
     if not options.s:
-        options.s = rad(5)
+        options.s = 0.005
 
-    spaceResection(inputFile=options.input, s=options.s)
+    spaceResection(options.input, options.s)
 
     return 0
 
