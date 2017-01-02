@@ -54,7 +54,7 @@ def conformalTrans(xa, ya, XA, YA):
     f = np.matrix(np.concatenate((XA, YA)))
 
     # Compute transformation parameters
-    a, b, Tx, Ty = np.array(((B.T*B).I*(B.T)*f)).flatten()
+    a, b, Tx, Ty = np.array(((B.T*B).I*(B.T)*f)).ravel()
 
     return a, b, Tx, Ty
 
@@ -113,68 +113,35 @@ def getEqn(IO, EO, PT, pt):
     return F
 
 
-def spaceResection(inputFile, outputFile, s):
-    """Perform a space resection"""
-    # Define symbols
-    EO = symbols("XL YL ZL Omega Phi Kappa")  # Exterior orienration parameters
-    PT = symbols("XA YA ZA")    # Object point coordinates
-    pt = symbols("xa ya")       # Image coordinates
-
-    # Read observables from txt file
-    with open(inputFile) as fin:
-        f = float(fin.readline())           # The focal length in mm
-
-    data = pd.read_csv(
-        inputFile,
-        delimiter=' ',
-        usecols=range(1, 9),
-        names=[str(i) for i in range(8)],
-        skiprows=1)
-
-    xa, ya, XA, YA, ZA, SigX, SigY, SigZ = np.hsplit(data.values, 8)
-
-    # Compute initial values
-    X0 = np.matrix(getInit(xa, ya, XA, YA, ZA, f)).T
-
-    print "Initial Values:\n Param\tValue"
-    print "  Omega\t%.6f\tdeg." % deg(X0[3, 0])
-    print "  Phi\t%.6f\tdeg." % deg(X0[4, 0])
-    print "  Kappa\t%.6f\tdeg." % deg(X0[5, 0])
-    print "   XL\t%.6f" % X0[0, 0]
-    print "   YL\t%.6f" % X0[1, 0]
-    print "   ZL\t%.6f" % X0[2, 0]
-    print
-
-    # Define variable for inerior orienration parameters
-    IO = f, 0, 0
-
-    # List and linearize observation equations
-    F = getEqn(IO, EO, PT, pt)
-    JFx = F.jacobian(EO)
-    JFl = F.jacobian(PT)    # Jacobian matrix for observables
-
-    # Create lambda function objects
-    FuncJFx = lambdify((EO+PT), JFx, 'numpy')
-    FuncJFl = lambdify((EO+PT), JFl, 'numpy')
-    FuncF = lambdify((EO+PT+pt), F, 'numpy')
+def estimate(sample, f, s, funcObj):
+    """Compute the model parameters with sample point sets."""
+    # Define input observables
+    xa, ya, XA, YA, ZA, SigX, SigY, SigZ = np.hsplit(sample.values, 8)
 
     # Define weight matrix
     err = np.dstack((SigX, SigY, SigZ)).reshape(1, -1)  # Error vector
     W = np.matrix(np.diag(s**2 / (err**2).ravel()))
-
-    dX = np.ones(1)                              # Initial value for iteration
+    Q = W.I
 
     numPt = len(xa)
 
-    # Array for the observables and initial values
-    # (XL, YL, ZL, Omega, Phi, Kappa, XA, YA, ZA, xa, ya)
+    # Compute initial values
+    X0 = np.matrix(getInit(xa, ya, XA, YA, ZA, f)).T
+
+    # print "Initial Values:\n Param\tValue"
+    # print "  Omega\t%.6f\tdeg." % deg(X0[3, 0])
+    # print "  Phi\t%.6f\tdeg." % deg(X0[4, 0])
+    # print "  Kappa\t%.6f\tdeg." % deg(X0[5, 0])
+    # print "   XL\t%.6f" % X0[0, 0]
+    # print "   YL\t%.6f" % X0[1, 0]
+    # print "   ZL\t%.6f" % X0[2, 0]
+    # print
+
+    dX = np.ones(1)                              # Initial value for iteration
+
+    # Create array for the observables and initial values
     l = np.zeros((numPt, 11))
-    l[:, 0] += X0[0, 0]
-    l[:, 1] += X0[1, 0]
-    l[:, 2] += X0[2, 0]
-    l[:, 3] += X0[3, 0]
-    l[:, 4] += X0[4, 0]
-    l[:, 5] += X0[5, 0]
+    l[:, :6] += X0[:, :].T
     l[:, 6] += XA.ravel()
     l[:, 7] += YA.ravel()
     l[:, 8] += ZA.ravel()
@@ -182,9 +149,10 @@ def spaceResection(inputFile, outputFile, s):
     l[:, 10] += ya.ravel()
 
     # Iteration process
-    lc = 0
+    lc = 0          # Loop count
     dRes = 1.       # Termination criteria
     res = 1.        # Initial value of residual
+    FuncJFl, FuncJFx, FuncF = funcObj
     while dRes > 10**-12 and lc < 20:
         # Compute coefficient matrix and constants matrix
         A = np.zeros((2 * numPt, err.shape[1]))
@@ -200,7 +168,7 @@ def spaceResection(inputFile, outputFile, s):
 
         B = np.matrix(B)
 
-        Qe = (A * W.I * A.T)
+        Qe = (A * Q * A.T)
         We = Qe.I
         N = (B.T * We * B)                  # Compute normal matrix
         t = (B.T * We * f)                  # Compute t matrix
@@ -208,12 +176,7 @@ def spaceResection(inputFile, outputFile, s):
         V = W.I * A.T * We * (f - B * dX)   # Compute residual vector
 
         X0 += dX            # Update initial values
-        l[:, 0] += dX[0, 0]
-        l[:, 1] += dX[1, 0]
-        l[:, 2] += dX[2, 0]
-        l[:, 3] += dX[3, 0]
-        l[:, 4] += dX[4, 0]
-        l[:, 5] += dX[5, 0]
+        l[:, :6] += dX[:, :].T
 
         # Update termination criteria
         if lc > 1:
@@ -225,10 +188,139 @@ def spaceResection(inputFile, outputFile, s):
 
         lc += 1
 
+    return X0, s0, N
+
+
+def getInlier(data, f, s, funcObj, X, thres):
+    """Get the index of inlier."""
+    # Define input observables
+    xa, ya, XA, YA, ZA, SigX, SigY, SigZ = np.hsplit(data.values, 8)
+
+    # Define weight matrix
+    err = np.dstack((SigX, SigY, SigZ)).reshape(1, -1)  # Error vector
+    W = np.matrix(np.diag(s**2 / (err**2).ravel()))
+    Q = W.I
+
+    numPt = len(data)
+
+    # Create observable array as argument of function objects
+    l = np.zeros((numPt, 11))
+    l[:, :6] += X[:, :].T
+    l[:, 6] += XA.ravel()
+    l[:, 7] += YA.ravel()
+    l[:, 8] += ZA.ravel()
+    l[:, 9] += xa.ravel()
+    l[:, 10] += ya.ravel()
+
+    # Compute coefficient matrix and constants matrix
+    A = np.zeros((2 * numPt, err.shape[1]))
+    B = np.zeros((2 * numPt, 6))
+    f = np.zeros((2 * numPt, 1))
+
+    FuncJFl, FuncJFx, FuncF = funcObj
+    Ai = FuncJFl(*np.hsplit(l, 11)[:-2])
+    Bi = FuncJFx(*np.hsplit(l, 11)[:-2])
+    f = np.matrix(-FuncF(*np.hsplit(l, 11)).T.reshape(-1, 1))
+    for i in range(numPt):
+        A[2*i:2*(i+1), 3*i:3*(i+1)] = Ai[:, :, i].reshape(2, 3)
+        B[2*i:2*(i+1), :] = Bi[:, :, i].reshape(2, 6)
+
+    B = np.matrix(B)
+    Qe = (A * Q * A.T)
+    We = Qe.I
+    N = (B.T * We * B)
+    t = (B.T * We * f)
+    dX = N.I * t
+    V = W.I * A.T * We * (f - B * dX)
+
+    # Get the inlier mask
+    dis = np.sqrt(np.power(V.reshape(-1, 3), 2).sum(axis=1))
+    mask = (dis < thres)
+
+    return data[mask].index
+
+
+def spaceResection(inputFile, outputFile, s,
+                   useRANSAC, maxIter, sampleSize, thres):
+    """Perform a space resection"""
+    # Read observables from txt file
+    with open(inputFile) as fin:
+        f = float(fin.readline())           # The focal length in mm
+
+    # Define symbols
+    EO = symbols("XL YL ZL Omega Phi Kappa")  # Exterior orienration parameters
+    PT = symbols("XA YA ZA")    # Object point coordinates
+    pt = symbols("xa ya")       # Image coordinates
+
+    # Define variable for inerior orienration parameters
+    IO = f, 0, 0
+
+    # List and linearize observation equations
+    F = getEqn(IO, EO, PT, pt)
+    JFx = F.jacobian(EO)
+    JFl = F.jacobian(PT)    # Jacobian matrix for observables
+
+    # Create lambda function objects
+    FuncJFl = lambdify((EO+PT), JFl, 'numpy')
+    FuncJFx = lambdify((EO+PT), JFx, 'numpy')
+    FuncF = lambdify((EO+PT+pt), F, 'numpy')
+
+    data = pd.read_csv(
+        inputFile,
+        delimiter=' ',
+        usecols=range(1, 9),
+        names=[str(i) for i in range(8)],
+        skiprows=1)
+
+    # Check data size
+    if useRANSAC and len(data) <= sampleSize:
+        print "Insufficient data for applying RANSAC method,",
+        print "change to normal approach"
+        useRANSAC = False
+
+    if useRANSAC:
+        bestErr = np.inf
+        bestIC = 0
+        bestParam = 0
+        bestN = 0
+        for i in range(maxIter):
+            print "Iteration count: %d" % (i+1)
+            sample = data.sample(sampleSize)
+            # Compute initial model with sample data
+            try:
+                X0, s0, N = estimate(sample, f, s, (FuncJFl, FuncJFx, FuncF))
+            except np.linalg.linalg.LinAlgError:
+                continue
+
+            idx = getInlier(data, f, s, (FuncJFl, FuncJFx, FuncF), X0, thres)
+            consensusSet = data.loc[idx]    # Inliers
+
+            # Update the model if the number consesus set is greater than
+            # current model and the error is smaller
+            if len(consensusSet) >= bestIC:
+                X0, s0, N = estimate(
+                    consensusSet, f, s, (FuncJFl, FuncJFx, FuncF))
+                if s0 < bestErr:
+                    bestErr = s0
+                    bestIC = len(consensusSet)
+                    bestParam = X0
+                    bestN = N
+                    print "Found better model,",
+                    print "inlier=%d (%.2f%%), error=%.6f" % \
+                        (bestIC, 100.0 * bestIC / len(data), bestErr)
+
+        if bestIC == 0:
+            print "Cannot apply RANSAC method, change to normal approach"
+            bestParam, bestErr, bestN = estimate(
+                data, f, s, (FuncJFl, FuncJFx, FuncF))
+    else:
+        bestParam, bestErr, bestN = estimate(
+            data, f, s, (FuncJFl, FuncJFx, FuncF))
+
     # Compute other informations
-    SigmaXX = s0**2 * N.I
+    SigmaXX = bestErr**2 * bestN.I
     paramStd = np.sqrt(np.diag(SigmaXX))
-    XL, YL, ZL, Omega, Phi, Kappa = np.array(X0).ravel()
+    XL, YL, ZL, Omega, Phi, Kappa = np.array(bestParam).ravel()
 
     # Output results
     print "Exterior orientation parameters:"
@@ -242,51 +334,76 @@ def spaceResection(inputFile, outputFile, s):
     print " %-10s %11.6f %11.6f" % ("XL", XL, paramStd[0])
     print " %-10s %11.6f %11.6f" % ("YL", YL, paramStd[1])
     print " %-10s %11.6f %11.6f" % ("ZL", ZL, paramStd[2])
-    print "\nSigma0 : %.6f" % s0
+    print "\nSigma0 : %.6f" % bestErr
 
     with open(outputFile, 'w') as fout:
         fout.write("%.6f "*3 % (XL, YL, ZL))
         fout.write("%.6f "*3 %
-            tuple(map(lambda x: deg(x) % 360, [Omega, Phi, Kappa])))
+                   tuple(map(lambda x: deg(x) % 360, [Omega, Phi, Kappa])))
         fout.write("%.6f "*3 % tuple(paramStd[:3]))
         fout.write("%.6f "*3 % tuple(map(lambda x: deg(x), paramStd[3:])))
 
 
 def main():
-    parser = OptionParser(usage="%prog [-i] [-o] [-s]", version="%prog 0.2")
+    parser = OptionParser(usage="%prog [options]", version="%prog 0.2")
 
     # Define options
     parser.add_option(
         '-i', '--input',
+        default="input.txt",
         help="read input data from FILE, the default value is \"input.txt\"",
         metavar='FILE')
 
     parser.add_option(
         '-o', '--output',
+        default="result.txt",
         help="name of output file, the default value is \"result.txt\"",
-        metavar='OUTPUT')
+        metavar='FILE')
 
     parser.add_option(
         '-s', '--sigma',
         type='float',
         dest='s',
+        default=0.005,
         help="define a priori error, the default value is 0.005",
+        metavar='N')
+
+    parser.add_option(
+        '-R', '--RANSAC',
+        action='store_true',
+        dest='R',
+        default=False,
+        help="use RANSAC method, default value is False")
+
+    parser.add_option(
+        '-m', '--max',
+        type='int',
+        dest='m',
+        default=20,
+        help="maximum number of iterations of RANSAC, default value is 20",
+        metavar='N')
+
+    parser.add_option(
+        '-n', '--num',
+        type='int',
+        dest='n',
+        default=10,
+        help="sample size for initinal model of RANSAC, default value is 10",
+        metavar='N')
+
+    parser.add_option(
+        '-t', '--threshold',
+        type='float',
+        dest='t',
+        default=0.01,
+        help="threshold for RANSAC, default value is 0.01",
         metavar='N')
 
     # Instruct optparse object
     (options, args) = parser.parse_args()
 
-    # Define default values if there are nothing given by the user
-    if not options.input:
-        options.input = "input.txt"
-
-    if not options.output:
-        options.output = "result.txt"
-
-    if not options.s:
-        options.s = 0.005
-
-    spaceResection(options.input, options.output, options.s)
+    spaceResection(options.input, options.output, options.s,
+                   options.R, options.m, options.n, options.t)
 
     return 0
 
