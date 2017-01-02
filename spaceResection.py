@@ -298,8 +298,12 @@ def spaceResection(inputFile, outputFile, s,
             # Update the model if the number consesus set is greater than
             # current model and the error is smaller
             if len(consensusSet) >= bestIC:
-                X0, s0, N = estimate(
-                    consensusSet, f, s, (FuncJFl, FuncJFx, FuncF))
+                try:
+                    X0, s0, N = estimate(
+                        consensusSet, f, s, (FuncJFl, FuncJFx, FuncF))
+                except np.linalg.linalg.LinAlgError:
+                    continue
+
                 if s0 < bestErr:
                     bestErr = s0
                     bestIC = len(consensusSet)
