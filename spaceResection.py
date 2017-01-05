@@ -319,7 +319,7 @@ def spaceResection(inputFile, outputFile, s,
                 data, f, s, (FuncJFl, FuncJFx, FuncF))
     else:
         bestParam, bestErr, bestN = estimate(
-            data, f, s, (FuncJFl, FuncJFx, FuncF))
+            data.sample(frac=1), f, s, (FuncJFl, FuncJFx, FuncF))
 
     # Compute other informations
     SigmaXX = bestErr**2 * bestN.I
