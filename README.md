@@ -1,7 +1,7 @@
 SpaceResection
 ==========
 
-##Description
+## Description
 This repository is an implementation of space resection, which can get the position and attitude of an camera with given information.
 The necessary information include:  
 + focal length [mm]  
@@ -10,7 +10,7 @@ The necessary information include:
 
 There must be more than three point observations to solve six unknown parameters.
 
-##Usage
+## Usage
 First, create an input file. The format of an input file must like:
 ```
 <f>
@@ -29,9 +29,9 @@ You can also type `./spaceResecion.py -h` for more information about this reposi
 There are already two input files serve as an example.
 
 
-##Requirements
+## Requirements
 
-###Python
+### Python
 [Python v2.7.X](https://www.python.org) with the following modules to be installed.
 
 -[Numpy](http://www.numpy.org)  
