@@ -157,23 +157,25 @@ def estimate(sample, f, s, funcObj):
         # Compute coefficient matrix and constants matrix
         A = np.zeros((2 * numPt, err.shape[1]))
         B = np.zeros((2 * numPt, 6))
-        f = np.zeros((2 * numPt, 1))
 
         Ai = FuncJFl(*np.hsplit(l, 11)[:-2])
         Bi = FuncJFx(*np.hsplit(l, 11)[:-2])
-        f = np.matrix(-FuncF(*np.hsplit(l, 11)).T.reshape(-1, 1))
+        F0 = np.matrix(-FuncF(*np.hsplit(l, 11)).T.reshape(-1, 1))
+
         for i in range(numPt):
             A[2*i:2*(i+1), 3*i:3*(i+1)] = Ai[:, :, i].reshape(2, 3)
             B[2*i:2*(i+1), :] = Bi[:, :, i].reshape(2, 6)
 
+        A = np.matrix(A)
         B = np.matrix(B)
 
-        Qe = (A * Q * A.T)
+        AT = A.T.copy()
+        Qe = (A * Q * AT)
         We = Qe.I
         N = (B.T * We * B)                  # Compute normal matrix
-        t = (B.T * We * f)                  # Compute t matrix
+        t = (B.T * We * F0)                 # Compute t matrix
         dX = N.I * t                        # Compute unknown parameters
-        V = W.I * A.T * We * (f - B * dX)   # Compute residual vector
+        V = Q * AT * We * (F0 - B * dX)     # Compute residual vector
 
         X0 += dX            # Update initial values
         l[:, :6] += dX[:, :].T
@@ -215,23 +217,25 @@ def getInlier(data, f, s, funcObj, X, thres):
     # Compute coefficient matrix and constants matrix
     A = np.zeros((2 * numPt, err.shape[1]))
     B = np.zeros((2 * numPt, 6))
-    f = np.zeros((2 * numPt, 1))
 
     FuncJFl, FuncJFx, FuncF = funcObj
     Ai = FuncJFl(*np.hsplit(l, 11)[:-2])
     Bi = FuncJFx(*np.hsplit(l, 11)[:-2])
-    f = np.matrix(-FuncF(*np.hsplit(l, 11)).T.reshape(-1, 1))
+    F0 = np.matrix(-FuncF(*np.hsplit(l, 11)).T.reshape(-1, 1))
     for i in range(numPt):
         A[2*i:2*(i+1), 3*i:3*(i+1)] = Ai[:, :, i].reshape(2, 3)
         B[2*i:2*(i+1), :] = Bi[:, :, i].reshape(2, 6)
 
+    A = np.matrix(A)
     B = np.matrix(B)
-    Qe = (A * Q * A.T)
+
+    AT = A.T.copy()
+    Qe = (A * Q * AT)
     We = Qe.I
     N = (B.T * We * B)
-    t = (B.T * We * f)
+    t = (B.T * We * F0)
     dX = N.I * t
-    V = W.I * A.T * We * (f - B * dX)
+    V = Q * AT * We * (F0 - B * dX)
 
     # Get the inlier mask
     dis = np.sqrt(np.power(V.reshape(-1, 3), 2).sum(axis=1))
