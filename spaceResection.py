@@ -387,8 +387,8 @@ def main():
         '-m', '--max',
         type='int',
         dest='m',
-        default=20,
-        help="maximum number of iterations of RANSAC, default value is 20",
+        default=10,
+        help="maximum number of iterations of RANSAC, default value is 10",
         metavar='N')
 
     parser.add_option(
