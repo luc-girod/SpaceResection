@@ -113,7 +113,7 @@ def getEqn(IO, EO, PT, pt):
     return F
 
 
-def estimate(sample, f, s, funcObj):
+def estimate(sample, f, s, funcObj, init):
     """Compute the model parameters with sample point sets."""
     # Define input observables
     xa, ya, XA, YA, ZA, SigX, SigY, SigZ = np.hsplit(sample.values, 8)
@@ -125,8 +125,16 @@ def estimate(sample, f, s, funcObj):
 
     numPt = len(xa)
 
-    # Compute initial values
-    X0 = np.matrix(getInit(xa, ya, XA, YA, ZA, f)).T
+    # Compute initial values if the initial file is not specified
+    if not init:
+        X0 = np.matrix(getInit(xa, ya, XA, YA, ZA, f)).T
+    else:
+        X0 = np.matrix(pd.read_csv(
+            init,
+            delimiter=' ',
+            usecols=range(6),
+            names=[str(i) for i in range(6)]).values).T
+        X0[3:] = map(np.radians, X0[3:])
 
     # print "Initial Values:\n Param\tValue"
     # print "  Omega\t%.6f\tdeg." % deg(X0[3, 0])
@@ -245,7 +253,7 @@ def getInlier(data, f, s, funcObj, X, thres):
 
 
 def spaceResection(inputFile, outputFile, s,
-                   useRANSAC, maxIter, sampleSize, thres):
+                   useRANSAC, maxIter, sampleSize, thres, init):
     """Perform a space resection"""
     # Read observables from txt file
     with open(inputFile) as fin:
@@ -292,7 +300,7 @@ def spaceResection(inputFile, outputFile, s,
             sample = data.sample(sampleSize)
             # Compute initial model with sample data
             try:
-                X0, s0, N = estimate(sample, f, s, (FuncJFl, FuncJFx, FuncF))
+                X0, s0, N = estimate(sample, f, s, (FuncJFl, FuncJFx, FuncF), init)
             except np.linalg.linalg.LinAlgError:
                 continue
 
@@ -304,7 +312,7 @@ def spaceResection(inputFile, outputFile, s,
             if len(consensusSet) >= bestIC:
                 try:
                     X0, s0, N = estimate(
-                        consensusSet, f, s, (FuncJFl, FuncJFx, FuncF))
+                        consensusSet, f, s, (FuncJFl, FuncJFx, FuncF), init)
                 except np.linalg.linalg.LinAlgError:
                     continue
 
@@ -320,10 +328,10 @@ def spaceResection(inputFile, outputFile, s,
         if bestIC == 0:
             print "Cannot apply RANSAC method, change to normal approach"
             bestParam, bestErr, bestN = estimate(
-                data, f, s, (FuncJFl, FuncJFx, FuncF))
+                data, f, s, (FuncJFl, FuncJFx, FuncF), init)
     else:
         bestParam, bestErr, bestN = estimate(
-            data.sample(frac=1), f, s, (FuncJFl, FuncJFx, FuncF))
+            data.sample(frac=1), f, s, (FuncJFl, FuncJFx, FuncF), init)
 
     # Compute other informations
     SigmaXX = bestErr**2 * bestN.I
@@ -359,13 +367,13 @@ def main():
     parser.add_option(
         '-i', '--input',
         default="input.txt",
-        help="read input data from FILE, the default value is \"input.txt\"",
+        help="read input data from FILE, default value is \"input.txt\"",
         metavar='FILE')
 
     parser.add_option(
         '-o', '--output',
         default="result.txt",
-        help="name of output file, the default value is \"result.txt\"",
+        help="name of output file, default value is \"result.txt\"",
         metavar='FILE')
 
     parser.add_option(
@@ -373,7 +381,7 @@ def main():
         type='float',
         dest='s',
         default=0.005,
-        help="define a priori error, the default value is 0.005",
+        help="define a priori error, default value is 0.005",
         metavar='N')
 
     parser.add_option(
@@ -407,11 +415,17 @@ def main():
         help="threshold for RANSAC, default value is 0.01",
         metavar='N')
 
+    parser.add_option(
+        '-I', '--init',
+        default=None,
+        help="use initial value from the specified E.O. file",
+        metavar='FILE')
+
     # Instruct optparse object
     (options, args) = parser.parse_args()
 
     spaceResection(options.input, options.output, options.s,
-                   options.R, options.m, options.n, options.t)
+                   options.R, options.m, options.n, options.t, options.init)
 
     return 0
 
