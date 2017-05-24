@@ -1,10 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from sympy import sin, cos, Matrix, symbols, lambdify
-from optparse import OptionParser
 from math import degrees as deg
 import numpy as np
+from optparse import OptionParser
 import pandas as pd
+from sympy import cos
+from sympy import lambdify
+from sympy import Matrix
+from sympy import sin
+from sympy import symbols
 
 
 np.set_printoptions(suppress=True)  # Disable scientific notation for numpy
@@ -254,7 +258,7 @@ def getInlier(data, f, s, funcObj, X, thres):
 
 def spaceResection(inputFile, outputFile, s,
                    useRANSAC, maxIter, sampleSize, thres, init):
-    """Perform a space resection"""
+    """Perform a space resection."""
     # Read observables from txt file
     with open(inputFile) as fin:
         f = float(fin.readline())           # The focal length in mm
@@ -300,7 +304,8 @@ def spaceResection(inputFile, outputFile, s,
             sample = data.sample(sampleSize)
             # Compute initial model with sample data
             try:
-                X0, s0, N = estimate(sample, f, s, (FuncJFl, FuncJFx, FuncF), init)
+                X0, s0, N = estimate(
+                    sample, f, s, (FuncJFl, FuncJFx, FuncF), init)
             except np.linalg.linalg.LinAlgError:
                 continue
 
@@ -395,8 +400,8 @@ def main():
         '-m', '--max',
         type='int',
         dest='m',
-        default=10,
-        help="maximum number of iterations of RANSAC, default value is 10",
+        default=5,
+        help="maximum number of iterations of RANSAC, default value is 5",
         metavar='N')
 
     parser.add_option(
