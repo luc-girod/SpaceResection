@@ -138,16 +138,15 @@ def estimate(sample, f, s, funcObj, init):
             delimiter=' ',
             usecols=range(6),
             names=[str(i) for i in range(6)]).values).T
-        X0[3:] = map(np.radians, X0[3:])
 
-    # print "Initial Values:\n Param\tValue"
-    # print "  Omega\t%.6f\tdeg." % deg(X0[3, 0])
-    # print "  Phi\t%.6f\tdeg." % deg(X0[4, 0])
-    # print "  Kappa\t%.6f\tdeg." % deg(X0[5, 0])
-    # print "   XL\t%.6f" % X0[0, 0]
-    # print "   YL\t%.6f" % X0[1, 0]
-    # print "   ZL\t%.6f" % X0[2, 0]
-    # print
+    print("Initial Values:\n Param\tValue")
+    print("Omega\t%.6f\tdeg." % X0[3, 0])
+    print("Phi\t%.6f\tdeg." % X0[4, 0])
+    print("Kappa\t%.6f\tdeg." % X0[5, 0])
+    print("XL\t%.6f" % X0[0, 0])
+    print("XL\t%.6f" % X0[1, 0])
+    print("ZL\t%.6f" % X0[2, 0])
+    print()
 
     dX = np.ones(1)                              # Initial value for iteration
 
@@ -189,7 +188,7 @@ def estimate(sample, f, s, funcObj, init):
         dX = N.I * t                        # Compute unknown parameters
         V = Q * AT * We * (F0 - B * dX)     # Compute residual vector
 
-        X0 += dX            # Update initial values
+        X0 = X0 + dX            # Update initial values
         l[:, :6] += dX[:, :].T
 
         # Update termination criteria
@@ -290,8 +289,8 @@ def spaceResection(inputFile, outputFile, s,
 
     # Check data size
     if useRANSAC and len(data) <= sampleSize:
-        print "Insufficient data for applying RANSAC method,",
-        print "change to normal approach"
+        print("Insufficient data for applying RANSAC method,")
+        print("change to normal approach")
         useRANSAC = False
 
     if useRANSAC:
@@ -300,7 +299,7 @@ def spaceResection(inputFile, outputFile, s,
         bestParam = 0
         bestN = 0
         for i in range(maxIter):
-            print "Iteration count: %d" % (i+1)
+            print("Iteration count: %d" % (i+1))
             sample = data.sample(sampleSize)
             # Compute initial model with sample data
             try:
@@ -326,12 +325,12 @@ def spaceResection(inputFile, outputFile, s,
                     bestIC = len(consensusSet)
                     bestParam = X0
                     bestN = N
-                    print "Found better model,",
-                    print "inlier=%d (%.2f%%), error=%.6f" % \
-                        (bestIC, 100.0 * bestIC / len(data), bestErr)
+                    print("Found better model,")
+                    print("inlier=%d (%.2f%%), error=%.6f" % \
+                        (bestIC, 100.0 * bestIC / len(data), bestErr))
 
         if bestIC == 0:
-            print "Cannot apply RANSAC method, change to normal approach"
+            print("Cannot apply RANSAC method, change to normal approach")
             bestParam, bestErr, bestN = estimate(
                 data, f, s, (FuncJFl, FuncJFx, FuncF), init)
     else:
@@ -344,18 +343,18 @@ def spaceResection(inputFile, outputFile, s,
     XL, YL, ZL, Omega, Phi, Kappa = np.array(bestParam).ravel()
 
     # Output results
-    print "Exterior orientation parameters:"
-    print (" %9s %11s %11s") % ("Parameter", "Value", "Std.")
-    print " %-10s %11.6f %11.6f" % (
-        "Omega(deg)", deg(Omega) % 360, deg(paramStd[3]))
-    print " %-10s %11.6f %11.6f" % (
-        "Phi(deg)", deg(Phi) % 360, deg(paramStd[4]))
-    print " %-10s %11.6f %11.6f" % (
-        "Kappa(deg)", deg(Kappa) % 360, deg(paramStd[5]))
-    print " %-10s %11.6f %11.6f" % ("XL", XL, paramStd[0])
-    print " %-10s %11.6f %11.6f" % ("YL", YL, paramStd[1])
-    print " %-10s %11.6f %11.6f" % ("ZL", ZL, paramStd[2])
-    print "\nSigma0 : %.6f" % bestErr
+    print("Exterior orientation parameters:")
+    print((" %9s %11s %11s") % ("Parameter", "Value", "Std."))
+    print(" %-10s %11.6f %11.6f" % (
+        "Omega(deg)", deg(Omega) % 360, deg(paramStd[3])))
+    print(" %-10s %11.6f %11.6f" % (
+        "Phi(deg)", deg(Phi) % 360, deg(paramStd[4])))
+    print(" %-10s %11.6f %11.6f" % (
+        "Kappa(deg)", deg(Kappa) % 360, deg(paramStd[5])))
+    print(" %-10s %11.6f %11.6f" % ("XL", XL, paramStd[0]))
+    print(" %-10s %11.6f %11.6f" % ("YL", YL, paramStd[1]))
+    print(" %-10s %11.6f %11.6f" % ("ZL", ZL, paramStd[2]))
+    print("\nSigma0 : %.6f" % bestErr)
 
     with open(outputFile, 'w') as fout:
         fout.write("%.6f "*3 % (XL, YL, ZL))
