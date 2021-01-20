@@ -9,42 +9,43 @@ import pandas as pd
 import gdal
 from optparse import OptionParser
 from matplotlib import pyplot
+import plyfile
 
 def RotMatrixFromAngles(O,P,K):
     
     RX=np.array([[1,0,0],
                  [0,np.cos(O),-np.sin(O)],
                  [0,np.sin(O),np.cos(O)]])    
-    RY=np.array([[np.cos(O),0,np.sin(O)],
+    RY=np.array([[np.cos(P),0,np.sin(P)],
                  [0,1,0],    
-                 [-np.sin(O),0,np.cos(O)]])
-    RZ=np.array([[np.cos(O),-np.sin(O),0],
-                 [np.sin(O),np.cos(O),0]],
-                 [0,0,1])
+                 [-np.sin(P),0,np.cos(P)]])
+    RZ=np.array([[np.cos(K),-np.sin(K),0],
+                 [np.sin(K),np.cos(K),0],
+                 [0,0,1]])
     
     return RX.dot(RY.dot(RZ))
 
 
-def XYZ2Im(aPtWorld,aR,aC,aFoc,aImSize):
+def XYZ2Im(aPtWorld,aCam,aImSize):
     '''
     Function to project a point in world coordinate into an image
 
     :param aPtWorld: 3d point in world coordinates
-    :param aR: rotation matrix
-    :param aC: Camera position
-    :param aFoc: Focal lenght
+    :param aCam: array describing a camera [position, rotation, focal]
     :param aImSize: Size of the image
     :return:  2d point in image coordinates
     '''
-
     # World to camera coordinate
-    aPtCam=np.linalg.inv(aR).dot(aPtWorld-aC)
+    aPtCam=np.linalg.inv(aCam[1]).dot(aPtWorld-aCam[0])
+    # Test if point is behind camera (Z positive in Cam coordinates)
+    if aPtCam[2]>0:
+        return None
     #print("PtCam =", aPtCam)
     # Camera to 2D projected coordinate
     aPtProj=[aPtCam[0]/aPtCam[2],aPtCam[1]/aPtCam[2]]
     #print("PtProj =", aPtProj)
     # 2D projected to image coordinate
-    aPtIm=aImSize/2+np.array(aFoc).dot(aPtProj)
+    aPtIm=[aImSize[0]/2,aImSize[1]/2]+np.array(aCam[2]).dot(aPtProj)
     if aPtIm[0]>0 and aPtIm[1]>0 and aPtIm[0]<aImSize[0] and aPtIm[1]<aImSize[1]:
         return aPtIm
     else:
@@ -91,10 +92,10 @@ def ProjectImage2DEM(dem_file, image_file, output, aCam):
     :param output: output point cloud filepath
     :param aCam: array describing a camera [position, rotation, focal]
     '''
-    
+    print('aCam=', aCam)
     aDEM_as_list=Raster2Array(dem_file)
     # Compute the distance between every point in the DEM and the camera
-    aDistArray=np.linalg.norm(aDEM_as_list-aCam[0])
+    aDistArray=np.linalg.norm(aDEM_as_list-aCam[0], axis=1)
     anImage=pyplot.imread(image_file)
     
     # For each pixel in image, store the XYZ position of the point projected to it,
@@ -103,22 +104,27 @@ def ProjectImage2DEM(dem_file, image_file, output, aCam):
     aXYZinImage=np.zeros([anImage.shape[0],anImage.shape[1],4])*np.nan
     
     for i in range(aDEM_as_list.shape[0]):
-        aProjectedPoint=int(XYZ2Im(aDEM_as_list[i],aCam))
-        if aProjectedPoint:
-            aDist=aXYZinImage[[aProjectedPoint,4]]
-            if aDist==np.nan or aDist>aDistArray[i]:
-                 aXYZinImage[aProjectedPoint,:]=[aDEM_as_list[i],aDistArray[i]]
+        aProjectedPoint=XYZ2Im(aDEM_as_list[i],aCam,anImage.shape)
+        if not (aProjectedPoint is None):
+            aDist=aXYZinImage[int(aProjectedPoint[0]),int(aProjectedPoint[1])][3]
+            if np.isnan(aDist) or aDist>aDistArray[i]:
+                 aXYZinImage[int(aProjectedPoint[0]),int(aProjectedPoint[1])]=[aDEM_as_list[i][0],aDEM_as_list[i][1],aDEM_as_list[i][2],aDistArray[i]]
+                # print(aXYZinImage[int(aProjectedPoint[0]),int(aProjectedPoint[1])])
+            #else:
+            #    print('Nope ', aDist, aDistArray[i])
+            
             
     # export ply file
-    # ply header
-    
-    # count how many points have values
-    
+    vertex = np.array([],dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'),('red', 'u1'), ('green', 'u1'),('blue', 'u1')])
     # export each point X, Y, Z R, G, B
     for i in range(anImage.shape[0]):
         for j in range(anImage.shape[1]):
-            if aXYZinImage[i,j][1:3] != np.nan:
-                print([aXYZinImage[i,j][1:3], anImage[i,j]])
+            if not np.isnan(aXYZinImage[i,j][3]):
+                aPoint=np.array([(aXYZinImage[i,j][0],aXYZinImage[i,j][1],aXYZinImage[i,j][2], anImage[i,j][0],anImage[i,j][1],anImage[i,j][2])],dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'),('red', 'u1'), ('green', 'u1'),('blue', 'u1')])
+                vertex=np.concatenate((vertex,aPoint), axis=0)
+                #print([aXYZinImage[i,j][0:2], anImage[i,j]])
+    el = plyfile.PlyElement.describe(vertex, 'vertex')
+    plyfile.PlyData([el], text=True).write(output)
     return 0
 
 def main():
@@ -174,6 +180,10 @@ def main():
     return 0
 
 
-# options.campos=[419175.787830,6718422.876705,1217.170495]
-# options.dem='E://WebcamFinse//time_lapse_finse_DSM_mini.tif'
-# options.image='E://WebcamFinse//2019-05-24_12-00.jpg'
+# dem_file='E://WebcamFinse//time_lapse_finse_DSM_mini.tif'
+# image='E://WebcamFinse//2019-05-24_12-00.jpg'
+# output='E://WebcamFinse//output.ply'
+# R=[[-0.25363216 -0.10670329 -0.96139749],[-0.71147276 -0.65278552  0.26014914],[-0.65534513  0.74999032  0.08965091]]
+# aCam=[[419175.787830,6718422.876705,1217.170495],R,1255]
+# ProjectImage2DEM(dem_file, image, output, aCam)
+R=RotMatrixFromAngles(115,17,75)
