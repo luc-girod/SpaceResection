@@ -10,6 +10,7 @@ import gdal
 from optparse import OptionParser
 from matplotlib import pyplot
 import plyfile
+import time
 
 def RotMatrixFromAngles(O,P,K):
     
@@ -93,16 +94,20 @@ def ProjectImage2DEM(dem_file, image_file, output, aCam):
     :param aCam: array describing a camera [position, rotation, focal]
     '''
     print('aCam=', aCam)
-    aDEM_as_list=Raster2Array(dem_file)
+    tic = time.perf_counter()
+    aDEM_as_list=Raster2Array(dem_file,nan_value=1137.75)
+    toc = time.perf_counter()
+    print(f"DEM converted in {toc - tic:0.4f} seconds")
     # Compute the distance between every point in the DEM and the camera
     aDistArray=np.linalg.norm(aDEM_as_list-aCam[0], axis=1)
+    # Load in image
     anImage=pyplot.imread(image_file)
     
     # For each pixel in image, store the XYZ position of the point projected to it,
     # and the distance to that point, if a new point would take the same position,
     # keep the closest point
     aXYZinImage=np.zeros([anImage.shape[0],anImage.shape[1],4])*np.nan
-    
+    tic = time.perf_counter()
     for i in range(aDEM_as_list.shape[0]):
         aProjectedPoint=XYZ2Im(aDEM_as_list[i],aCam,anImage.shape)
         if not (aProjectedPoint is None):
@@ -113,18 +118,22 @@ def ProjectImage2DEM(dem_file, image_file, output, aCam):
             #else:
             #    print('Nope ', aDist, aDistArray[i])
             
+    toc = time.perf_counter()
+    print(f"Position of each pixel computed in {toc - tic:0.4f} seconds")
             
     # export ply file
     vertex = np.array([],dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'),('red', 'u1'), ('green', 'u1'),('blue', 'u1')])
-    # export each point X, Y, Z R, G, B
+    # export each point X, Y, Z, R, G, B
     for i in range(anImage.shape[0]):
         for j in range(anImage.shape[1]):
             if not np.isnan(aXYZinImage[i,j][3]):
                 aPoint=np.array([(aXYZinImage[i,j][0],aXYZinImage[i,j][1],aXYZinImage[i,j][2], anImage[i,j][0],anImage[i,j][1],anImage[i,j][2])],dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'),('red', 'u1'), ('green', 'u1'),('blue', 'u1')])
                 vertex=np.concatenate((vertex,aPoint), axis=0)
-                #print([aXYZinImage[i,j][0:2], anImage[i,j]])
     el = plyfile.PlyElement.describe(vertex, 'vertex')
     plyfile.PlyData([el], text=True).write(output)
+    
+    print('PLY file extracted')
+    
     return 0
 
 def main():
@@ -180,9 +189,9 @@ def main():
     return 0
 
 
-# dem_file='E://WebcamFinse//time_lapse_finse_DSM_mini.tif'
+# dem_file='E://WebcamFinse//time_lapse_finse_DSM_mid.tif'
 # image='E://WebcamFinse//2019-05-24_12-00.jpg'
-# output='E://WebcamFinse//output.ply'
+# output='E://WebcamFinse//output_full.ply'
 # R=[[-0.25363216 -0.10670329 -0.96139749],[-0.71147276 -0.65278552  0.26014914],[-0.65534513  0.74999032  0.08965091]]
 # aCam=[[419175.787830,6718422.876705,1217.170495],R,1255]
 # ProjectImage2DEM(dem_file, image, output, aCam)
