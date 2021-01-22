@@ -12,6 +12,7 @@ from matplotlib import pyplot
 import plyfile
 import time
 
+
 def RotMatrixFromAngles(O,P,K):
     
     RX=np.array([[1,0,0],
@@ -24,7 +25,7 @@ def RotMatrixFromAngles(O,P,K):
                  [np.sin(K),np.cos(K),0],
                  [0,0,1]])
     
-    return RX.dot(RY.dot(RZ))
+    return RX.dot(RY.dot(RZ)).dot(np.array([[1,0,0],[0,-1,0],[0,0,-1]]))
 
 
 def XYZ2Im(aPtWorld,aCam,aImSize):
@@ -103,9 +104,12 @@ def ProjectImage2DEM(dem_file, image_file, output, aCam, dem_nan_value=-9999):
     aDistArray=np.linalg.norm(aDEM_as_list-aCam[0], axis=1)
 
     # Load in image
-    anImage=pyplot.imread(image_file).T
+    anImage=pyplot.imread(image_file)
     if len(anImage.shape)==2:
+        anImage=anImage.T
         anImage = np.stack((anImage,anImage,anImage), axis=2)
+    else:
+            anImage = np.stack((anImage[:,:,0].T,anImage[:,:,1].T,anImage[:,:,2].T), axis=2)
     # For each pixel in image, store the XYZ position of the point projected to it,
     # and the distance to that point, if a new point would take the same position,
     # keep the closest point
@@ -190,22 +194,30 @@ def main():
 
     return 0
 
-# INput Finse
+# Input Finse
+#runfile('M:/git/photogrammetry-resection/resection_lsq.py',args='E://WebcamFinse//CamFinseInit.inp E://WebcamFinse//GCPs_WebcamFinse_Centered.inp', wdir='M:/git/photogrammetry-resection')
+R=RotMatrixFromAngles(res.x[0],res.x[1],res.x[2])
+C=[res.x[3],res.x[4],res.x[5]]
+Foc=1484
 dem_file='E://WebcamFinse//time_lapse_finse_DSM_mid.tif'
 image_file='E://WebcamFinse//2019-05-24_12-00.jpg'
 output='E://WebcamFinse//output_full.ply'
-R=[[-0.25363216,-0.10670329,-0.96139749],[-0.71147276,-0.65278552,0.26014914],[-0.65534513,0.74999032,0.08965091]]
-aCam=[[419175.787830,6718422.876705,1217.170495],R,1255]
+#R=RotMatrixFromAngles(296.5900742877957,752.9132532359986,-0.23151933194086316)
+#C=[419171.2825386935,6718423.0604178095,1212.1851466249436]
+aCam=[C,R,Foc]
 ProjectImage2DEM(dem_file, image_file, output, aCam, dem_nan_value=1137.75)
-R=RotMatrixFromAngles(115,17,75)
+
 
 
 
 #Input Cucza
-R=RotMatrixFromAngles(3.3,-4.1,5.5)
-# dem_file='E://WebcamFinse//Cucza//DEM.tif'
-# image_file='E://WebcamFinse//Cucza//Abbey-IMG_0209.jpg'
-# output='E://WebcamFinse//Cucza//output.ply'
+R=RotMatrixFromAngles(0.08313040808087234,-0.07991804434454106,0.09855057521214053)
+C=[208.23581197916084,90.42526833269204,107.85550148056846]
+Foc=2011.887
+aCam=[C,R,Foc]
+dem_file='E://WebcamFinse//Cucza//DEM.tif'
+image_file='E://WebcamFinse//Cucza//Abbey-IMG_0209.jpg'
+output='E://WebcamFinse//Cucza//output.ply'
 # R=[[0.993534882295323163,0.0929006109947966841,0.0652526944977123435],[0.0878277479180877285,-0.993176223631756505,0.0767285833845516713],[0.0719355569802246908,-0.0705015268583363691,-0.994914473888378059]]
 # aCam=[[209.89527614679403023,91.20530793577831,107.031846453497209],R,2011.8874387887106]
 # ProjectImage2DEM(dem_file, image_file, output, aCam)
