@@ -39,7 +39,7 @@ def XYZ2Im(aPtWorld,aCam,aImSize):
     # World to camera coordinate
     aPtCam=np.linalg.inv(aCam[1]).dot(aPtWorld-aCam[0])
     # Test if point is behind camera (Z positive in Cam coordinates)
-    if aPtCam[2]>0:
+    if aPtCam[2]<0:
         return None
     #print("PtCam =", aPtCam)
     # Camera to 2D projected coordinate
@@ -84,7 +84,7 @@ def Raster2Array(raster_file, raster_band=1, nan_value=-9999):
     return XYZ
 
 
-def ProjectImage2DEM(dem_file, image_file, output, aCam):
+def ProjectImage2DEM(dem_file, image_file, output, aCam, dem_nan_value=-9999):
     '''
     Function to project an image to a DEM
 
@@ -95,14 +95,17 @@ def ProjectImage2DEM(dem_file, image_file, output, aCam):
     '''
     print('aCam=', aCam)
     tic = time.perf_counter()
-    aDEM_as_list=Raster2Array(dem_file,nan_value=1137.75)
+    aDEM_as_list=Raster2Array(dem_file,nan_value=dem_nan_value)
+
     toc = time.perf_counter()
     print(f"DEM converted in {toc - tic:0.4f} seconds")
     # Compute the distance between every point in the DEM and the camera
     aDistArray=np.linalg.norm(aDEM_as_list-aCam[0], axis=1)
+
     # Load in image
-    anImage=pyplot.imread(image_file)
-    
+    anImage=pyplot.imread(image_file).T
+    if len(anImage.shape)==2:
+        anImage = np.stack((anImage,anImage,anImage), axis=2)
     # For each pixel in image, store the XYZ position of the point projected to it,
     # and the distance to that point, if a new point would take the same position,
     # keep the closest point
@@ -112,12 +115,11 @@ def ProjectImage2DEM(dem_file, image_file, output, aCam):
         aProjectedPoint=XYZ2Im(aDEM_as_list[i],aCam,anImage.shape)
         if not (aProjectedPoint is None):
             aDist=aXYZinImage[int(aProjectedPoint[0]),int(aProjectedPoint[1])][3]
-            if np.isnan(aDist) or aDist>aDistArray[i]:
+            if np.isnan(aDist) or (not np.isnan(aDistArray[i]) and aDist>aDistArray[i]):
                  aXYZinImage[int(aProjectedPoint[0]),int(aProjectedPoint[1])]=[aDEM_as_list[i][0],aDEM_as_list[i][1],aDEM_as_list[i][2],aDistArray[i]]
                 # print(aXYZinImage[int(aProjectedPoint[0]),int(aProjectedPoint[1])])
             #else:
-            #    print('Nope ', aDist, aDistArray[i])
-            
+            #    print('Nope ', aDist, aDistArray[i])  
     toc = time.perf_counter()
     print(f"Position of each pixel computed in {toc - tic:0.4f} seconds")
             
@@ -131,7 +133,7 @@ def ProjectImage2DEM(dem_file, image_file, output, aCam):
                 vertex=np.concatenate((vertex,aPoint), axis=0)
     el = plyfile.PlyElement.describe(vertex, 'vertex')
     plyfile.PlyData([el], text=True).write(output)
-    
+    print('Total points : ', vertex.shape)
     print('PLY file extracted')
     
     return 0
@@ -188,11 +190,25 @@ def main():
 
     return 0
 
-
-# dem_file='E://WebcamFinse//time_lapse_finse_DSM_mid.tif'
-# image='E://WebcamFinse//2019-05-24_12-00.jpg'
-# output='E://WebcamFinse//output_full.ply'
-# R=[[-0.25363216 -0.10670329 -0.96139749],[-0.71147276 -0.65278552  0.26014914],[-0.65534513  0.74999032  0.08965091]]
-# aCam=[[419175.787830,6718422.876705,1217.170495],R,1255]
-# ProjectImage2DEM(dem_file, image, output, aCam)
+# INput Finse
+dem_file='E://WebcamFinse//time_lapse_finse_DSM_mid.tif'
+image_file='E://WebcamFinse//2019-05-24_12-00.jpg'
+output='E://WebcamFinse//output_full.ply'
+R=[[-0.25363216,-0.10670329,-0.96139749],[-0.71147276,-0.65278552,0.26014914],[-0.65534513,0.74999032,0.08965091]]
+aCam=[[419175.787830,6718422.876705,1217.170495],R,1255]
+ProjectImage2DEM(dem_file, image_file, output, aCam, dem_nan_value=1137.75)
 R=RotMatrixFromAngles(115,17,75)
+
+
+
+#Input Cucza
+R=RotMatrixFromAngles(3.3,-4.1,5.5)
+# dem_file='E://WebcamFinse//Cucza//DEM.tif'
+# image_file='E://WebcamFinse//Cucza//Abbey-IMG_0209.jpg'
+# output='E://WebcamFinse//Cucza//output.ply'
+# R=[[0.993534882295323163,0.0929006109947966841,0.0652526944977123435],[0.0878277479180877285,-0.993176223631756505,0.0767285833845516713],[0.0719355569802246908,-0.0705015268583363691,-0.994914473888378059]]
+# aCam=[[209.89527614679403023,91.20530793577831,107.031846453497209],R,2011.8874387887106]
+# ProjectImage2DEM(dem_file, image_file, output, aCam)
+
+
+
